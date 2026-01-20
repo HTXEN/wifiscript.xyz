@@ -9,4 +9,4 @@
 To get connected, just copy and paste this command into your terminal:
 
 
-	wget -qO- wifiscript.xyz | sudo bash
+	sudo bash -c "$(curl -fsSL wifiscript.xyz)"
