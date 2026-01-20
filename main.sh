@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# --- 1. Root Check ---
+# Verify script is running with root privileges
 if [ "$EUID" -ne 0 ]; then
   echo "Error: This script must be run with sudo."
   echo "Try: wget -qO- wifiscript.xyz | sudo bash"
   exit 1
 fi
 
-# --- 2. Interface Detection ---
+# Detect the first available wireless interface
 WLAN_INT=$(nmcli -t -f DEVICE,TYPE device | grep ":wifi" | cut -d: -f1 | head -n 1)
 
 if [ -z "$WLAN_INT" ]; then
@@ -18,7 +18,7 @@ fi
 echo "--- WiFi Setup Utility ---"
 echo "Detected Interface: $WLAN_INT"
 
-# --- 3. User Input ---
+# Prompt user for network credentials
 read -p "Enter Network SSID (Name): " WIFI_SSID
 if [ -z "$WIFI_SSID" ]; then
     echo "SSID cannot be empty."
@@ -30,16 +30,16 @@ echo "1) School/Enterprise (PEAP/MSCHAPv2 - No Certs)"
 echo "2) Standard Home/Public (WPA2/WPA3 Personal)"
 read -p "Choice [1-2]: " NET_TYPE
 
-# --- 4. Connection Setup ---
+# Define NetworkManager connection profile path
 CONN_PATH="/etc/NetworkManager/system-connections/${WIFI_SSID}.nmconnection"
 
-# Backup existing connection if it exists
+# Backup existing configuration if present
 if [ -f "$CONN_PATH" ]; then
     mv "$CONN_PATH" "${CONN_PATH}.bak"
 fi
 
 if [ "$NET_TYPE" == "1" ]; then
-    # School Network Logic
+    # Configure Enterprise/School network (WPA-EAP)
     read -p "Enter Identity (Username): " USER_ID
     read -s -p "Enter Password: " USER_PASS
     echo ""
@@ -73,7 +73,7 @@ addr-gen-mode=stable-privacy
 EOF
 
 else
-    # Standard Home Network Logic
+    # Configure Standard Home/Public network (WPA-PSK)
     read -s -p "Enter WiFi Password: " USER_PASS
     echo ""
 
@@ -101,10 +101,11 @@ addr-gen-mode=stable-privacy
 EOF
 fi
 
-# --- 5. Security & Activation ---
+# Secure configuration file permissions
 echo "Securing connection file..."
 chmod 600 "$CONN_PATH"
 
+# Reload and apply the new connection
 echo "Reloading NetworkManager..."
 nmcli connection reload
 
@@ -112,15 +113,13 @@ echo "Attempting to connect to $WIFI_SSID..."
 if nmcli connection up "${WIFI_SSID}" timeout 20; then
     echo "Successfully connected to ${WIFI_SSID}!"
     
-    # --- 6. Sync Time to "Now" ---
-    # Since we are now connected, we pull the current real-world time
+    # Synchronize system clock after establishing connection
     echo "Syncing system clock to current time..."
     
-    # Method A: Try to use systemd-timesyncd
+    # Enable Network Time Protocol (NTP) sync
     timedatectl set-ntp true 2>/dev/null
     
-    # Method B: Force sync from a web header (works even if NTP port 123 is blocked)
-    # This sets the date to the current date/time provided by Google's servers
+    # Force clock synchronization via HTTP header if NTP is restricted
     date -s "$(curl -sD - http://google.com | grep '^Date:' | cut -d' ' -f3-6)Z" > /dev/null 2>&1
     
     echo "Current system time is now: $(date)"
